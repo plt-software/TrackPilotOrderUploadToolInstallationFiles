@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ "main" ]
+
+  workflow_dispatch:
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Create Release
+        uses: actions/github-script@v2
+        with:
+          github-token: ${{secrets.GITHUB_TOKEN}}
+          script: |
+            console.log('environment', process.versions);
+
+            const fs = require('fs').promises;
+
+            const { repo: { owner, repo }, sha } = context;
+            console.log({ owner, repo, sha });
+          
+            const { GITHUB_RUN_NUMBER } = process.env;
+
+            const release = await github.repos.createRelease({
+              owner, repo,
+              tag_name: GITHUB_RUN_NUMBER.toString(),
+              draft: false,
+              target_commitish: sha
+            });
+            
+            console.log('created release', { release });
+
+            const files = await fs.readdir('./Assets');
+            console.log("files", files);
+
+            for (let file of files) {
+              // do whatever filtering you want here, I'm just uploading all the files
+              console.log('uploading', file);
+              console.log("file", await fs.readFile(`./Assets/${file}`));
+
+              await github.repos.uploadReleaseAsset({
+                owner, repo,
+                release_id: release.data.id,
+                name: file,
+                data: await fs.readFile(`./Assets/${file}`)
+              });          
+            }
